@@ -1,5 +1,6 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 test("packaged renderer can call the real isolated desktop IPC", async () => {
   test.skip(
@@ -10,7 +11,8 @@ test("packaged renderer can call the real isolated desktop IPC", async () => {
   console.log("Native smoke: launching Electron");
   const app = await electron.launch({
     timeout: 60000,
-    args: [fileURLToPath(new URL("../", import.meta.url))],
+    // Playwright quotes Windows args through cmd.exe; a trailing backslash escapes its closing quote.
+    args: [resolve(fileURLToPath(new URL("../", import.meta.url)))],
   });
   console.log("Native smoke: Electron launch resolved");
   try {
