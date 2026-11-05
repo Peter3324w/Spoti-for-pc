@@ -27,6 +27,9 @@ jobs:
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci
+      - name: Install Electron runtime
+        working-directory: desktop
+        run: npx electron --version
       - name: Verify desktop shell
         working-directory: desktop
         run: npm test

@@ -35,6 +35,7 @@ The first version includes home, search, library filters, album/playlist/artist 
 npm test
 npm run build
 npx playwright install chromium
+npx electron --version
 npm run test:ui
 ```
 
