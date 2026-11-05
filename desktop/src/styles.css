@@ -89,7 +89,8 @@ button svg {
 .topbar {
   height: 72px;
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 44vw, 514px) minmax(0, 1fr);
   align-items: center;
   gap: 20px;
   padding: 0 17px;
@@ -98,7 +99,8 @@ button svg {
   display: flex;
   align-items: center;
   gap: 11px;
-  min-width: 280px;
+  min-width: 0;
+  justify-self: start;
   text-align: left;
   padding: 0;
 }
@@ -134,13 +136,15 @@ button svg {
   height: 25px;
 }
 .search-area {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 1;
-  max-width: 570px;
+  width: 100%;
 }
 .home-button {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 0;
   display: grid;
   place-items: center;
   width: 48px;
@@ -193,7 +197,7 @@ button svg {
   white-space: nowrap;
 }
 .top-actions {
-  margin-left: auto;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -1194,9 +1198,6 @@ button svg {
   .library-panel {
     width: 340px;
   }
-  .brand {
-    min-width: 312px;
-  }
   .media-grid {
     grid-template-columns: repeat(7, minmax(0, 1fr));
   }
@@ -1207,9 +1208,6 @@ button svg {
   }
   .library-panel {
     width: 260px;
-  }
-  .brand {
-    min-width: 230px;
   }
   .media-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1247,9 +1245,6 @@ button svg {
   }
 }
 @media (max-width: 1000px) {
-  .brand {
-    min-width: 190px;
-  }
   .brand strong > span {
     display: none;
   }
