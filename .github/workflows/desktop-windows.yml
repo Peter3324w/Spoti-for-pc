@@ -17,13 +17,6 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: desktop/package-lock.json
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v6
-      - name: Build and test the Myspoti desktop backend
-        run: .\desktop\backend\gradlew.bat -p desktop/backend :api:test :api-spotify:test :host-cdp:test :desktop-server:test :desktop-server:installDist
       - name: Install desktop dependencies
         working-directory: desktop
         run: npm ci
@@ -41,7 +34,16 @@ jobs:
         run: npx playwright install chromium
       - name: Test the interface
         working-directory: desktop
+        env:
+          DEBUG: 'pw:browser*'
         run: npm run test:ui
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Build and test the Myspoti desktop backend
+        run: .\desktop\backend\gradlew.bat -p desktop/backend :api:test :api-spotify:test :host-cdp:test :desktop-server:test :desktop-server:installDist
       - name: Bundle Java runtime
         shell: pwsh
         run: Copy-Item -Recurse "$env:JAVA_HOME" desktop/runtime
