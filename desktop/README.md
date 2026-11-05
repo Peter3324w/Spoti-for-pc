@@ -59,3 +59,11 @@ npm run package:win -- --publish never
 ```
 
 Keep Chrome installed. Windows SmartScreen may flag the unsigned installer. Installer behavior and real audio must be checked on Windows before release. Distribute the matching complete source archive alongside each installer, retain LICENSE, THIRD_PARTY_NOTICES.md and bundled licenses, and include build instructions. The source link in About points to this fork; make the matching source public before distribution.
+
+For an offline local test build, first build the renderer and backend, then run the following with **Windows Node.js**. Supply existing Windows Electron, Java and electron-builder tool caches:
+
+```
+node scripts/package-local-windows.cjs --electron-dist "C:\cache\electron\dist" --runtime "C:\cache\jre21" --7zip-path "C:\cache\7zip\7za.exe" --nsis-dir "C:\cache\nsis" --nsis-resources-dir "C:\cache\nsis-resources" --output-dir "C:\Users\your-name\Downloads"
+```
+
+The helper checks the supplied Java/backend IPC, stages files on Windows, blocks packaging downloads and copies the completed installer to the requested folder. It uses the supplied Electron version, skips executable resource editing/signing and never publishes. The Java runtime must support the backend's compiled Java version. This route also works from WSL by invoking Windows Node against the script's Windows/UNC path. Keep the supplied runtime and tools cached for future builds.
