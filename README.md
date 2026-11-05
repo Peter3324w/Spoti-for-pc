@@ -1,3 +1,21 @@
+## Windows desktop fork: Spoti for PC
+
+This fork adds a Windows desktop interface powered by Myspoti’s original Kotlin API and Chrome playback integration. The UI follows Spotify’s web-player layout with its own Spoti branding. Development began November 5, 2026; the fork remains GPL-3.0 with Myspoti and third-party attribution preserved.
+
+See [desktop setup, browser preview, and Windows build instructions](desktop/README.md). Real Spotify login and Windows audio playback still require a live Windows verification run.
+
+```sh
+cd desktop
+npm ci
+npm run dev
+```
+
+Open http://localhost:5173 and choose **Explore the preview** to review the interface with a labeled sample library. The preview does not play music.
+
+The original Myspoti documentation follows.
+
+---
+
 # Myspoti
 
 [![Latest release](https://img.shields.io/github/v/release/kota-zo/myspoti?label=release)](https://github.com/kota-zo/myspoti/releases/latest)

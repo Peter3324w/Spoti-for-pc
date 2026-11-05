@@ -1,0 +1,70 @@
+name: Desktop Windows
+on:
+  workflow_dispatch:
+  push:
+    paths: ['desktop/**', 'base/api/**', 'base/api-spotify/**', 'base/host-cdp/**', 'base/desktop-server/**', 'base/*gradle.kts', '.github/workflows/desktop-windows.yml']
+  pull_request:
+    paths: ['desktop/**', 'base/api/**', 'base/api-spotify/**', 'base/host-cdp/**', 'base/desktop-server/**', 'base/*gradle.kts', '.github/workflows/desktop-windows.yml']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Build and test the Myspoti desktop backend
+        run: .\desktop\backend\gradlew.bat -p desktop/backend :api:test :api-spotify:test :host-cdp:test :desktop-server:test :desktop-server:installDist
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+      - name: Verify desktop shell
+        working-directory: desktop
+        run: npm test
+      - name: Build the renderer
+        working-directory: desktop
+        run: npm run build
+      - name: Install Playwright Chromium
+        working-directory: desktop
+        run: npx playwright install chromium
+      - name: Test the interface
+        working-directory: desktop
+        run: npm run test:ui
+      - name: Bundle Java runtime
+        shell: pwsh
+        run: Copy-Item -Recurse "$env:JAVA_HOME" desktop/runtime
+      - name: Build Windows installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run package:win -- --publish never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Spoti-for-PC-Windows
+          path: desktop/release/*.exe
+      - name: Archive corresponding source
+        shell: bash
+        run: git archive --format=zip --output=spoti-for-pc-source.zip HEAD
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Spoti-for-PC-source
+          path: spoti-for-pc-source.zip
+
+      - name: Preserve failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Desktop-test-reports
+          path: |
+            desktop/test-results/
+            base/**/build/reports/tests/
+          if-no-files-found: ignore

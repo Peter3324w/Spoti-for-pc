@@ -1,0 +1,78 @@
+{
+  "dependencies": {
+    "lucide-react": "^1.69.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "name": "spoti-for-pc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Windows desktop client powered by Myspoti",
+  "author": "Peter Phiri",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "start": "npm run build && electron .",
+    "test": "node --test tests/*.test.cjs",
+    "test:ui": "playwright test",
+    "package:win": "node scripts/check-package.cjs && npm run build && electron-builder --win nsis --x64 --publish never",
+    "backend:build": "node scripts/build-backend.cjs"
+  },
+  "build": {
+    "appId": "app.spotiforpc.desktop",
+    "productName": "Spoti for PC",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../base/desktop-server/build/install/desktop-server/lib",
+        "to": "backend/lib"
+      },
+      {
+        "from": "runtime",
+        "to": "runtime"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "../base/licenses",
+        "to": "licenses"
+      },
+      {
+        "from": "licenses",
+        "to": "licenses/desktop"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6"
+  }
+}

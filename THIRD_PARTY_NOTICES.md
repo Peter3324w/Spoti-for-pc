@@ -81,3 +81,22 @@ Copyright The Chromium Authors. Casting to Google Cast devices
 (`base/app/src/main/java/com/music/spotui/cast/`) is Myspoti's own CastV2 sender, without the
 Google Cast SDK. `CastMessage.kt` codes by hand the `CastMessage` message that this file defines
 (its field numbers and types); no Chromium code is included.
+
+## Spoti for PC desktop additions (November 5, 2026)
+
+Windows desktop modifications by Peter Phiri, licensed under GPL-3.0. The desktop
+client retains Myspoti as its origin and reuses its API and Chrome CDP integration.
+
+- Electron — MIT, https://github.com/electron/electron. Packaged distributions include Electron's license and Chromium third-party notices.
+- React / React DOM — MIT, Copyright Meta Platforms, Inc. and affiliates, https://github.com/facebook/react.
+- Lucide — ISC (icons also contain Feather-derived MIT material), https://github.com/lucide-icons/lucide.
+- Gson — Apache-2.0, Copyright Google Inc., https://github.com/google/gson. Used only by the desktop JSON-lines adapter. Apache-2.0 text is included in `base/licenses/Apache-2.0.txt`.
+- OpenJDK / Eclipse Temurin runtime, when bundled by the Windows workflow — GPL-2.0 with Classpath Exception and component-specific licenses. Preserve the runtime's `legal/` directory and vendor source information.
+
+The optional browser preview's SVG artwork is original sample artwork created for
+Spoti for PC. Its library and track names are fictional demonstration content; no
+recordings are included. Spotify content displayed after login belongs to its
+respective rights holders. The desktop project does not include Spotify's logo or
+proprietary fonts.
+
+Full React, React DOM, Scheduler and Lucide license texts for the desktop runtime are in `desktop/licenses/` and are included in the Windows package.
