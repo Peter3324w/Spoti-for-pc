@@ -3,31 +3,6 @@ const fs = require("node:fs/promises");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const { RpcClient } = require("./rpc.cjs");
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-function findChrome() {
-  const candidates =
-    process.platform === "win32"
-      ? [
-          path.join(
-            process.env.PROGRAMFILES || "C:\\Program Files",
-            "Google/Chrome/Application/chrome.exe",
-          ),
-          path.join(
-            process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)",
-            "Google/Chrome/Application/chrome.exe",
-          ),
-          path.join(
-            process.env.LOCALAPPDATA || "",
-            "Google/Chrome/Application/chrome.exe",
-          ),
-        ]
-      : [
-          "/usr/bin/google-chrome",
-          "/usr/bin/google-chrome-stable",
-          "/opt/google/chrome/chrome",
-        ];
-  return candidates.find(existsSync);
-}
 async function loadDeviceId(profile) {
   const file = path.join(profile, "device-id");
   try {
@@ -47,224 +22,138 @@ async function loadDeviceId(profile) {
   }
 }
 class Playback {
-  constructor(app, emit) {
+  constructor(app, emit, {components, createPage, spawn: spawnProcess = spawn} = {}) {
     this.app = app;
     this.emit = emit;
+    this.components = components;
+    this.createPage = createPage;
+    this.spawn = spawnProcess;
     this.status = { connected: false, signedIn: false };
     this.generation = 0;
-    this.findChrome = findChrome;
-    this.spawn = spawn;
-    this.platform = process.platform;
   }
   async connect() {
     if (this.connecting) return this.connecting;
     const generation = ++this.generation;
-    this.connecting = this.start(generation).finally(() => {
-      this.connecting = null;
-    });
+    this.connecting = this.start(generation).finally(() => { this.connecting = null; });
     return this.connecting;
   }
   async start(generation) {
-    const check = () => {
-      if (generation !== this.generation)
-        throw new Error("Playback startup cancelled.");
-    };
+    const current = () => generation === this.generation;
+    const check = () => { if (!current()) throw new Error("Playback startup cancelled."); };
     await this.terminate();
     check();
-    const chromePath = this.findChrome();
-    if (!chromePath)
-      throw new Error(
-        "Google Chrome is required for playback. Install Chrome, then try again.",
-      );
-    const profile = path.join(this.app.getPath("userData"), "playback-profile");
-    await fs.mkdir(profile, { recursive: true });
-    check();
-    const deviceId = await loadDeviceId(profile);
-    check();
-    const portFile = path.join(profile, "DevToolsActivePort");
-    await fs.rm(portFile, { force: true });
-    check();
-    const chrome = this.spawn(
-      chromePath,
-      [
-        `--user-data-dir=${profile}`,
-        "--remote-debugging-port=0",
-        "--remote-debugging-address=127.0.0.1",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--app=https://open.spotify.com/",
-      ],
-      { stdio: "ignore" },
-    );
-    this.chrome = chrome;
-    let failed = false;
-    chrome.once("error", () => {
-      failed = true;
-    });
-    chrome.once("exit", () => {
-      failed = true;
-      if (this.chrome === chrome) {
-        this.rpc?.close();
-        this.backend?.kill();
-        this.update({
-          connected: false,
-          signedIn: false,
-          error: "The playback window closed. Reconnect to continue.",
-        });
-      }
-    });
     try {
-      let port;
-      for (let n = 0; n < 100; n++) {
-        check();
-        if (failed)
-          throw new Error(
-            "Chrome could not start. Close any old Spoti playback windows and try again.",
-          );
-        try {
-          const contents = await fs.readFile(portFile, "utf8");
-          port = Number(contents.split("\n")[0]);
-          if (port > 0 && port < 65536) break;
-        } catch {}
-        await sleep(200);
-      }
-      check();
-      if (failed)
-        throw new Error("The Chrome playback window closed during startup.");
-      if (!port)
-        throw new Error(
-          "Chrome did not become ready. Close its playback window and reconnect.",
-        );
-      const root = this.app.isPackaged
-        ? process.resourcesPath
-        : path.resolve(__dirname, "../..");
-      const lib = this.app.isPackaged
-        ? path.join(root, "backend/lib")
-        : path.join(
-            root,
-            "base/desktop-server/build/install/desktop-server/lib",
-          );
-      if (!existsSync(lib))
-        throw new Error(
-          "Playback backend is missing. Run npm run backend:build first.",
-        );
-      const java = this.app.isPackaged
-        ? path.join(root, "runtime/bin/java.exe")
-        : process.env.JAVA_HOME
-          ? path.join(
-              process.env.JAVA_HOME,
-              "bin",
-              process.platform === "win32" ? "java.exe" : "java",
-            )
-          : "java";
-      const backend = this.spawn(
-        java,
-        [
-          "-cp",
-          path.join(lib, "*"),
-          "app.myspoti.desktop.MainKt",
-          `http://127.0.0.1:${port}`,
-          deviceId,
-        ],
-        { stdio: ["pipe", "pipe", "ignore"], windowsHide: true },
+      if (!this.components || !this.createPage) throw new Error(
+        "The DRM-capable playback runtime is required. Start Spoti with its Castlabs Electron runtime.",
       );
+      this.update({connected:false, signedIn:false, connecting:true});
+      let timer;
+      try {
+        await Promise.race([
+          this.components.whenReady(),
+          new Promise((_, reject) => { this.cancelStartup = () => reject(new Error("Playback startup cancelled.")); }),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("The playback component took too long to load. Check your connection and reconnect.")), 120000); }),
+        ]);
+      } finally { clearTimeout(timer); this.cancelStartup = null; }
+      check();
+      const profile = path.join(this.app.getPath("userData"), "playback-profile");
+      await fs.mkdir(profile, {recursive:true});
+      const deviceId = await loadDeviceId(profile);
+      check();
+      const root = this.app.isPackaged ? process.resourcesPath : path.resolve(__dirname, "../..");
+      const lib = !this.app.isPackaged && process.env.SPOTI_BACKEND_LIB ? process.env.SPOTI_BACKEND_LIB : this.app.isPackaged ? path.join(root,"backend/lib")
+        : path.join(root,"base/desktop-server/build/install/desktop-server/lib");
+      if (!existsSync(lib)) throw new Error("Playback backend is missing. Run npm run backend:build first.");
+      const page = await this.createPage({
+        message: payload => { if (current()) this.sendHost({host:"message",payload}); },
+        lifecycle: state => {
+          if (!current()) return;
+          if (state === "failed") {
+            this.failPage();
+          } else this.sendHost({host:state});
+        },
+      });
+      if (!current()) { await page.close(); check(); }
+      this.page = page;
+      this.loginDismissed = false;
+      const java = process.env.SPOTI_JAVA || (this.app.isPackaged
+        ? path.join(root,"runtime/bin/java.exe")
+        : process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME,"bin",process.platform === "win32" ? "java.exe" : "java") : "java");
+      const backend = this.spawn(java,["-cp",path.join(lib,"*"),"app.myspoti.desktop.MainKt","--embedded",deviceId],
+        {stdio:["pipe","pipe","ignore"],windowsHide:true});
       this.backend = backend;
       const rpc = new RpcClient(backend);
       this.rpc = rpc;
-      rpc.on("event", (message) => {
-        if (this.rpc !== rpc) return;
-        if (message.event === "session") this.status = message.value;
-        this.emit(message);
+      rpc.on("event", message => {
+        if (!current() || this.rpc !== rpc) return;
+        if (message.event === "host.evaluate") {
+          page.evaluate(message.script).then(
+            () => { if (current() && this.rpc === rpc) this.sendHost({host:"result",id:message.id,ok:true}); },
+            () => { if (current() && this.rpc === rpc) this.sendHost({host:"result",id:message.id,ok:false}); },
+          );
+          return;
+        }
+        if (message.event === "session") {
+          const show = !message.value.signedIn && !this.loginDismissed && !message.value.error;
+          page.setLoginVisible(show);
+          this.update({...message.value, loginVisible:show});
+        } else this.emit(message);
       });
-      this.update({ connected: false, signedIn: false, connecting: true });
+      page.setLoginVisible(true);
+      this.update({connected:false,signedIn:false,connecting:true,loginVisible:true});
+      page.load().catch(() => {
+        if (current() && this.page === page) {
+          this.failPage();
+        }
+      });
       return this.status;
-    } catch (e) {
-      if (generation === this.generation) await this.terminate();
-      throw e;
+    } catch (error) {
+      if (current()) {
+        await this.terminate();
+        this.update({connected:false,signedIn:false,error:error.message});
+      }
+      throw error;
     }
   }
-  update(value) {
-    this.status = value;
-    this.emit({ event: "session", value });
+  failPage() {
+    this.update({connected:false,signedIn:false,loginVisible:false,error:"Spotify could not load. Check your connection and reconnect."});
+    this.terminate().catch(() => {});
   }
-  request(method, args) {
+  sendHost(message) {
+    if (this.backend && !this.backend.stdin.destroyed) this.backend.stdin.write(JSON.stringify(message) + "\n");
+  }
+  hideLogin() {
+    this.loginDismissed = true;
+    this.page?.setLoginVisible(false);
+    this.update({...this.status, loginVisible:false});
+    return this.status;
+  }
+  update(value) { this.status = value; this.emit({event:"session",value}); }
+  request(method,args) {
     if (method === "session.status") return Promise.resolve(this.status);
-    if (!this.rpc)
-      return Promise.reject(new Error("Connect to Spotify first."));
-    return this.rpc.request(method, args);
+    if (!this.rpc) return Promise.reject(new Error("Connect to Spotify first."));
+    return this.rpc.request(method,args);
   }
   async stop() {
     ++this.generation;
+    this.cancelStartup?.();
     const pending = this.connecting;
     await this.terminate();
     if (pending) await pending.catch(() => {});
-    this.status = { connected: false, signedIn: false };
+    this.status = {connected:false,signedIn:false};
   }
   async terminate() {
-    const rpc = this.rpc;
-    this.rpc = null;
-    rpc?.close();
-    const backend = this.backend;
-    this.backend = null;
-    const chrome = this.chrome;
-    this.chrome = null;
-    const terminateChild = (child) =>
-      new Promise((resolve) => {
-        if (!child || child.exitCode !== null || child.signalCode) {
-          resolve();
-          return;
-        }
-        const timer = setTimeout(resolve, 5000);
-        child.once("exit", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-        child.once("error", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-        child.kill();
-      });
-    const jobs = [terminateChild(backend)];
-    if (chrome?.pid && chrome.exitCode === null && !chrome.signalCode) {
-      if (this.platform === "win32")
-        jobs.push(
-          new Promise((resolve, reject) => {
-            const killer = this.spawn(
-              "taskkill",
-              ["/PID", String(chrome.pid), "/T", "/F"],
-              { stdio: "ignore", windowsHide: true },
-            );
-            const timer = setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    "Chrome is still closing. Close the playback window and try again.",
-                  ),
-                ),
-              10000,
-            );
-            killer.once("exit", (code) => {
-              clearTimeout(timer);
-              if (code === 0 || chrome.exitCode !== null) resolve();
-              else
-                reject(
-                  new Error(
-                    "Could not close the previous playback window. Close it and reconnect.",
-                  ),
-                );
-            });
-            killer.once("error", () => {
-              clearTimeout(timer);
-              reject(
-                new Error("Could not close the previous playback window."),
-              );
-            });
-          }),
-        );
-      else jobs.push(terminateChild(chrome));
-    }
+    const rpc = this.rpc; this.rpc = null; rpc?.close();
+    const backend = this.backend; this.backend = null;
+    const page = this.page; this.page = null;
+    const jobs = [];
+    if (page) jobs.push(page.close());
+    if (backend && backend.exitCode === null && !backend.signalCode) jobs.push(new Promise(resolve => {
+      const timer = setTimeout(resolve,5000);
+      const done = () => {clearTimeout(timer);resolve();};
+      backend.once("exit",done); backend.once("error",done); backend.kill();
+    }));
     await Promise.all(jobs);
   }
 }
-module.exports = { Playback, findChrome, loadDeviceId };
+module.exports = {Playback, loadDeviceId};

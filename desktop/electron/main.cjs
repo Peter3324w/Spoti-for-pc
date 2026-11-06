@@ -1,4 +1,6 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const electron = require("electron");
+const { app, BrowserWindow, ipcMain, shell, components } = electron;
+const { createEmbeddedPage } = require("./embedded.cjs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { Playback } = require("./playback.cjs");
@@ -7,7 +9,7 @@ let window;
 const playback = new Playback(app, (message) => {
   if (window && !window.isDestroyed())
     window.webContents.send("spoti:event", message);
-});
+}, {components, createPage: callbacks => createEmbeddedPage(window, electron, callbacks)});
 const links = {
   source: "https://github.com/Peter3324w/Spoti-for-pc",
   upstream: "https://github.com/kota-zo/myspoti",
@@ -23,7 +25,9 @@ else {
   });
   app.whenReady().then(() => {
     const entry = path.join(__dirname, "../dist/index.html");
-    const entryUrl = pathToFileURL(entry).href;
+    const devUrl = process.env.SPOTI_DEV_URL;
+    if (devUrl && !/^http:\/\/localhost:[0-9]+\/$/.test(devUrl)) throw new Error("Invalid development URL");
+    const entryUrl = devUrl || pathToFileURL(entry).href;
     window = new BrowserWindow({
       width: 1440,
       height: 940,
@@ -54,6 +58,7 @@ else {
       )
         throw new Error("Untrusted sender");
       if (method === "desktop.connect") return playback.connect();
+      if (method === "desktop.hideLogin") return playback.hideLogin();
       if (method === "desktop.link") {
         if (!Object.hasOwn(links, args?.name)) throw new Error("Unknown link");
         await shell.openExternal(links[args.name]);
@@ -62,7 +67,8 @@ else {
       if (!COMMANDS.has(method)) throw new Error("Unsupported command");
       return playback.request(method, args);
     });
-    window.loadFile(entry);
+    if (devUrl) window.loadURL(devUrl);
+    else window.loadFile(entry);
   });
   let stopped = false;
   app.on("before-quit", (event) => {

@@ -1,3 +1,23 @@
+# Embedded desktop verification — November 6, 2026
+
+- Downloaded Windows x64 Castlabs Electron **45.2.1+wvcus** (158.4 MB); verified SHA256 against the release's SHASUMS256.txt: `a17f87a95a62e8f336d6fa18e57b9bc83d513b02211e4e5771a45cfd7482740e`.
+- The Windows runtime installed Widevine **4.10.3112.0**. In the actual isolated Spotify playback view, `requestMediaKeySystemAccess` succeeds for Widevine with MP4/AAC audio. This establishes key-system availability, not Spotify license acceptance or audible playback.
+- A real Windows Electron launch reports exactly one BrowserWindow, successful isolated preload IPC, a working embedded Spotify page and the sandboxed private debugger binding. No external Chrome is launched.
+- Native verification caught a new view having no renderer before navigation: sending Page.enable at that point hung indefinitely. Initializing about:blank before attaching fixes it. A regression test covers this ordering.
+- Native verification also caught Spotify serving its limited mobile site under Electron's default user agent. The playback view now uses the runtime's desktop Chromium identity; the full desktop Web Player renders.
+- The real Windows Java process emits private host.evaluate and session events from the new stdio bridge. Direct jar reads across the WSL share were too slow to initialize during a 15-second probe; the same jars initialize immediately from Windows-local storage. The launcher stages immutable jar snapshots by content hash.
+- **16 Node tests pass**, including navigation isolation, trusted top-frame bridge messages, user activation, failure persistence, component-download cancellation, closing an already-destroyed parent and local jar-cache invalidation.
+- **Seven browser interface tests pass in the cached Windows Chromium**, including the embedded sign-in return action. Linux UI runs failed because the cached browser needs missing Linux shared libraries; rerunning on Windows required no browser download.
+- TypeScript checking and JS syntax checks pass. No production renderer build or installer packaging was run.
+- Kotlin checks pass offline: **181 upstream API tests and six desktop tests**, zero failures. All **30 upstream live CDP tests** remain skipped without an authenticated browser.
+- Independent review found error-state overwrite and untrusted subframe bridge messages; both have observed failing regression tests and fixes. The added local jar-staging code received a separate review with no important findings.
+
+**Still requires Peter's signed-in test:** Spotify login completion, initial Play directly from My Spoti after a fresh launch, license acceptance and audible audio, pause/resume, track switching and reconnect. Existing Chrome cookies are not copied. The previously installed app/installer still represents the old separate-Chrome version until an installer update is explicitly requested.
+
+---
+
+## Historical verification (November 5, before embedded playback)
+
 # Desktop verification — November 5, 2026
 
 ## Verified locally on Linux / Java 21

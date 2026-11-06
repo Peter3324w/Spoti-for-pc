@@ -18,19 +18,28 @@ fun main(args: Array<String>) = runBlocking {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     fun emit(value: Any) { synchronized(output) { output.println(gson.toJson(value)) } }
     val host = AtomicReference<CdpHost?>(null)
+    val embedded = if (args.firstOrNull() == "--embedded") EmbeddedHost { emit(it) } else null
     val api = AtomicReference<SpotifyApi?>(null)
     val signedIn = AtomicBoolean(false)
     val sessionError = AtomicReference<String?>(null)
     fun session() = mapOf("connected" to (api.get()?.ready?.value == true), "signedIn" to signedIn.get(), "error" to sessionError.get())
     val boot = scope.launch {
         try {
-            val endpoint = args.firstOrNull() ?: error("Missing Chrome endpoint")
-            require(Regex("http://127\\.0\\.0\\.1:[0-9]+").matches(endpoint)) { "Invalid Chrome endpoint" }
-            val connectedHost = CdpHost.connect(endpoint)
-            host.set(connectedHost)
+            val connectedHost = embedded ?: run {
+                val endpoint = args.firstOrNull() ?: error("Missing playback endpoint")
+                require(Regex("http://127\\.0\\.0\\.1:[0-9]+").matches(endpoint)) { "Invalid playback endpoint" }
+                CdpHost.connect(endpoint).also { host.set(it) }
+            }
             val service = SpotifyApi(connectedHost, scope, deviceId = args.getOrNull(1)?.also { java.util.UUID.fromString(it) })
             api.set(service)
-            launch { while (isActive) { connectedHost.awaitLoad(); service.onPageStarting(); runCatching { service.onPageLoaded() } } }
+            if (embedded != null) launch {
+                for (event in embedded.lifecycle) {
+                    service.onPageStarting()
+                    if (event == "loaded") runCatching { service.onPageLoaded() }
+                }
+            } else launch {
+                while (isActive) { host.get()!!.awaitLoad(); service.onPageStarting(); runCatching { service.onPageLoaded() } }
+            }
             launch { service.player.state.collectLatest { emit(mapOf("event" to "player", "value" to it)) } }
             while (isActive) {
                 try {
@@ -42,19 +51,26 @@ fun main(args: Array<String>) = runBlocking {
                 delay(2000)
             }
         } catch (e: Exception) {
-            sessionError.set("Could not connect to Chrome. Close the playback window and reconnect.")
+            sessionError.set("Could not connect to the playback engine. Reconnect to continue.")
             emit(mapOf("event" to "session", "value" to session()))
         }
     }
     try {
         while (true) {
             val line = withContext(Dispatchers.IO) { input.readLine() } ?: break
+            if (embedded != null) {
+                val message = runCatching { com.google.gson.JsonParser.parseString(line).asJsonObject }.getOrNull()
+                if (message?.has("host") == true) {
+                    runCatching { embedded.accept(message) }
+                    continue
+                }
+            }
             scope.launch {
                 var id = -1
                 try {
                     val request = parseRequest(line); id = request.id
                     val value = if (request.method == "session.status") session() else {
-                        check(signedIn.get()) { "Sign in to Spotify in the playback window first." }
+                        check(signedIn.get()) { "Sign in to Spotify inside Spoti first." }
                         withTimeout(35000) { dispatch(api.get() ?: error("Player is starting"), request) }
                     }
                     synchronized(output) { output.println(success(id, value)) }
@@ -62,7 +78,7 @@ fun main(args: Array<String>) = runBlocking {
                     // Service failures can contain request headers/tokens. Only expose known validation text.
                     val message = when (e) {
                         is IllegalArgumentException -> "Invalid request or unsupported command."
-                        is IllegalStateException -> if (e.message == "Sign in to Spotify in the playback window first.") e.message!! else "Spotify could not complete this request. Try again."
+                        is IllegalStateException -> if (e.message == "Sign in to Spotify inside Spoti first.") e.message!! else "Spotify could not complete this request. Try again."
                         is TimeoutCancellationException -> "Spotify took too long to respond. Try again."
                         else -> "Spotify could not complete this request. Try again."
                     }

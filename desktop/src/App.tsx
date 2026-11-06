@@ -379,6 +379,15 @@ export default function App() {
     }));
   return (
     <div className="app-shell">
+      {session.loginVisible && (
+        <div className="embedded-login-bar">
+          <strong>Sign in to Spotify</strong>
+          <span>Your library will appear automatically.</span>
+          <button onClick={() => client.request("desktop.hideLogin").catch((e: Error) => setError(e.message))}>
+            <ArrowLeft size={16} /> Return to My Spoti
+          </button>
+        </div>
+      )}
       <header className="topbar">
         <button
           className="brand"
@@ -636,7 +645,7 @@ export default function App() {
               </button>
               {session.connecting || session.connected ? (
                 <p className="login-note">
-                  Finish signing in in the Chrome playback window.
+                  Finish signing in on Spotify’s page inside this window.
                   <br />
                   Your library will appear here automatically.
                 </p>
@@ -974,7 +983,7 @@ export default function App() {
             <p>A desktop home for your music.</p>
             <p>
               Windows interface by Peter Phiri. Powered by{" "}
-              <strong>Myspoti</strong> and its original Kotlin API and Chrome
+              <strong>Myspoti</strong> and its original Kotlin API and embedded Spotify
               playback integration. This modified desktop version is licensed
               under <strong>GPL-3.0</strong>. Changes began November 5, 2026.
             </p>

@@ -73,6 +73,7 @@ export interface Session {
   connected: boolean;
   signedIn: boolean;
   connecting?: boolean;
+  loginVisible?: boolean;
   error?: string;
 }
 export interface Event {

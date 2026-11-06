@@ -15,7 +15,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
-    "start": "npm run build && electron .",
+    "start": "node scripts/dev-desktop.cjs",
     "test": "node --test tests/*.test.cjs",
     "test:ui": "playwright test",
     "package:win": "node scripts/check-package.cjs && npm run build && electron-builder --win nsis --x64 --publish never",
@@ -70,7 +70,7 @@
     "@playwright/test": "^1.64.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "electron": "^45.2.3",
+    "electron": "https://github.com/castlabs/electron-releases/archive/refs/tags/v45.2.1+wvcus.tar.gz",
     "electron-builder": "^26.18.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.6"

@@ -85,8 +85,9 @@ Google Cast SDK. `CastMessage.kt` codes by hand the `CastMessage` message that t
 ## Spoti for PC desktop additions (November 5, 2026)
 
 Windows desktop modifications by Peter Phiri, licensed under GPL-3.0. The desktop
-client retains Myspoti as its origin and reuses its API and Chrome CDP integration.
+client retains Myspoti as its origin and reuses its API. The desktop playback view uses Castlabs Electron for Content Security; the upstream Chrome CDP host remains available for API tests.
 
+- Castlabs Electron for Content Security — MIT, https://github.com/castlabs/electron-releases. Uses a separately installed Widevine CDM subject to its provider terms. See `desktop/licenses/Castlabs-Electron-MIT.txt`.
 - Electron — MIT, https://github.com/electron/electron. Packaged distributions include Electron's license and Chromium third-party notices.
 - React / React DOM — MIT, Copyright Meta Platforms, Inc. and affiliates, https://github.com/facebook/react.
 - Lucide — ISC (icons also contain Feather-derived MIT material), https://github.com/lucide-icons/lucide.

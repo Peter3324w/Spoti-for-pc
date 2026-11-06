@@ -2,7 +2,7 @@ import { test, expect, _electron as electron } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
-test("packaged renderer can call the real isolated desktop IPC", async () => {
+test("desktop renderer can call the real isolated desktop IPC", async () => {
   test.skip(
     process.platform !== "win32",
     "The native desktop smoke check runs on the Windows build runner.",
@@ -11,6 +11,7 @@ test("packaged renderer can call the real isolated desktop IPC", async () => {
   console.log("Native smoke: launching Electron");
   const app = await electron.launch({
     timeout: 60000,
+    executablePath: process.env.SPOTI_ELECTRON_PATH,
     // Playwright quotes Windows args through cmd.exe; a trailing backslash escapes its closing quote.
     args: [resolve(fileURLToPath(new URL("../", import.meta.url)))],
   });

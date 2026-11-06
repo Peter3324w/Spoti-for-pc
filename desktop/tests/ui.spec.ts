@@ -276,3 +276,26 @@ test("saving the previous song cannot mark the next song as liked", async ({
     page.getByRole("button", { name: "Remove from Liked Songs" }),
   ).toHaveCount(0);
 });
+
+test("embedded sign-in has a usable return button in the same window", async ({ page }) => {
+  await page.addInitScript(() => {
+    let session = {connected:false, signedIn:false, loginVisible:true};
+    let listener: ((event: any) => void) | undefined;
+    (window as any).spoti = {
+      request: async (method: string) => {
+        if (method === "desktop.hideLogin") {
+          session = {...session,loginVisible:false};
+          listener?.({event:"session",value:session});
+        }
+        return session;
+      },
+      subscribe: (callback: (event: any) => void) => { listener=callback; return ()=>{}; },
+    };
+  });
+  await page.goto("/");
+  const back = page.getByRole("button",{name:"Return to My Spoti"});
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(back).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Connect to Spotify",exact:true})).toBeVisible();
+});
