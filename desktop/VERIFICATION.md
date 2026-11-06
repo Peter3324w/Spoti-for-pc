@@ -1,3 +1,19 @@
+# Signed-in failure investigation — November 6, 2026
+
+Peter's signed-in test did **not** pass: selecting a song caused rapid skipping and then silent apparent playback. The failure was reproduced in the actual Windows development app.
+
+- Spotify's audio-licence endpoint returned repeated HTTP **500** responses; selected tracks advanced only a fraction of a second before moving on. The page then played a muted advert while the custom UI retained the last song. This was not corrected by maximum music volume.
+- The engine had media keys, volume **1.0**, a ready media decoder and the active Spotify Connect device. The failing Windows runtime's signature was checked with official `castlabs-evs 1.3.3`: **Certificate is valid for development only**.
+- Castlabs issue193 records the same Spotify500/skipping symptom and resolution through EVS signing: https://github.com/castlabs/electron-releases/issues/193. Correct signing remains to be done; successful audible playback is still unverified.
+- A failed audio licence now disposes the view/JVM and retains an explanatory error, blocking frontend play/skip and backend recovery instead of cycling through tracks. The failing response's headers and body are not relayed to the UI or logs.
+- Once authenticated, temporary session changes cannot re-show the Spotify browser page. Remote navigation stays hidden until it loads, avoiding the blank browser view over the local interface.
+- A fresh signed-in Windows guard test selected a Liked Songs track, observed the real licence failure, and confirmed: setup error visible, embedded page disposed, backend stopped, and subsequent Play rejected. The app was left stopped at the explanatory error.
+- Independent review identified that a one-shot JS pause could be undone by Kotlin recovery. The final implementation disposes both playback view and JVM and ignores late callbacks; regression coverage includes a pending play request and a late backend resume.
+- **18 Node tests pass**, including the failure guard, stale backend recovery rejection, login latch, navigation loading and hook cleanup. TypeScript and JS syntax checks pass. These checks do not fix or prove Spotify licensing.
+- Signing prerequisites and exact steps: [playback-signing.md](docs/playback-signing.md). The CLI is prepared locally; no EVS account was created, no signup email sent and no signing request made. A verified account is required. No production app build or installer was created.
+
+---
+
 # Embedded desktop verification — November 6, 2026
 
 - Downloaded Windows x64 Castlabs Electron **45.2.1+wvcus** (158.4 MB); verified SHA256 against the release's SHASUMS256.txt: `a17f87a95a62e8f336d6fa18e57b9bc83d513b02211e4e5771a45cfd7482740e`.

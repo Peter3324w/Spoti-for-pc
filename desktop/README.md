@@ -43,6 +43,8 @@ Then launch `scripts/dev-desktop.cjs` with Windows Node, setting `SPOTI_DEV_URL=
 
 Select **Connect to Spotify**. Spotify's sign-in page appears inside the same app window; **Return to My Spoti** dismisses it. After login, the page hides and the custom interface loads your account. Playback continues inside the app. This uses a separate persistent playback partition; you will sign in once again because Chrome's cookies are not copied. No external Chrome window is opened. Closing the app closes the owned playback view and JVM.
 
+**Required before real music playback:** the Windows runtime needs an EVS streaming VMP signature. The default development-only signature produces Spotify audio-licence failures and skipped tracks. See [playback signing and the confirmed failure](docs/playback-signing.md). Initial key-system checks alone do not prove Spotify accepts the runtime.
+
 The runtime downloads its Widevine component on first use. Missing components, failed navigation and backend errors offer a reconnect path. Google/Apple/Facebook social-login navigation is not currently supported inside this restricted login view; use Spotify email/password login. Key-system availability alone does not prove that Spotify accepts the runtime's DRM licenses.
 
 The first version includes home, search, library filters, album/playlist/artist views, paginated track lists, liked songs, queue, playback controls and legal credits. Podcasts in home may appear, but podcast/show detail pages, Android extensions, offline downloads and playlist editing are not yet ported. No donation destination has been configured.

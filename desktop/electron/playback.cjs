@@ -46,6 +46,8 @@ class Playback {
       if (!this.components || !this.createPage) throw new Error(
         "The DRM-capable playback runtime is required. Start Spoti with its Castlabs Electron runtime.",
       );
+      this.playbackError = null;
+      this.loginCompleted = false;
       this.update({connected:false, signedIn:false, connecting:true});
       let timer;
       try {
@@ -66,6 +68,11 @@ class Playback {
       if (!existsSync(lib)) throw new Error("Playback backend is missing. Run npm run backend:build first.");
       const page = await this.createPage({
         message: payload => { if (current()) this.sendHost({host:"message",payload}); },
+        playbackError: failure => {
+          if (!current() || failure.kind !== 'audio-license' || this.playbackError) return;
+          this.playbackError = "Spotify could not authorize audio playback. Playback has stopped to prevent songs being skipped. The playback engine needs setup.";
+          this.failPage(this.playbackError);
+        },
         lifecycle: state => {
           if (!current()) return;
           if (state === "failed") {
@@ -94,9 +101,10 @@ class Playback {
           return;
         }
         if (message.event === "session") {
-          const show = !message.value.signedIn && !this.loginDismissed && !message.value.error;
+          if (message.value.signedIn) this.loginCompleted = true;
+          const show = !this.loginCompleted && !this.loginDismissed && !message.value.error;
           page.setLoginVisible(show);
-          this.update({...message.value, loginVisible:show});
+          this.update({...message.value, loginVisible:show, ...(this.playbackError ? {error:this.playbackError} : {})});
         } else this.emit(message);
       });
       page.setLoginVisible(true);
@@ -115,8 +123,9 @@ class Playback {
       throw error;
     }
   }
-  failPage() {
-    this.update({connected:false,signedIn:false,loginVisible:false,error:"Spotify could not load. Check your connection and reconnect."});
+  failPage(error = "Spotify could not load. Check your connection and reconnect.") {
+    ++this.generation; // Ignore every late bridge/lifecycle callback from this failed engine.
+    this.update({connected:false,signedIn:false,loginVisible:false,error});
     this.terminate().catch(() => {});
   }
   sendHost(message) {
@@ -131,8 +140,13 @@ class Playback {
   update(value) { this.status = value; this.emit({event:"session",value}); }
   request(method,args) {
     if (method === "session.status") return Promise.resolve(this.status);
+    if (this.playbackError && ["player.play","player.resume","player.next","player.previous"].includes(method)) {
+      return Promise.reject(new Error(this.playbackError));
+    }
     if (!this.rpc) return Promise.reject(new Error("Connect to Spotify first."));
-    return this.rpc.request(method,args);
+    return this.rpc.request(method,args).catch(error => {
+      throw new Error(this.playbackError || error.message);
+    });
   }
   async stop() {
     ++this.generation;

@@ -26,6 +26,16 @@ async function createEmbeddedPage(window, {WebContentsView, session}, callbacks)
     .replace(/(\(KHTML, like Gecko\)) .*?(Chrome\/)/, '$1 $2')
     .replace(/\sElectron\/\S+/g, ''));
   let closed = false;
+  let loginVisible = false;
+  let loading = false;
+  const licenseFilter = {urls: ['https://*.spotify.com/widevine-license/*']};
+  playbackSession.webRequest.onCompleted(licenseFilter, details => {
+    if (closed || !isPlayer(wc.getURL())) return;
+    const url = new URL(details.url);
+    if (url.pathname === '/widevine-license/v1/audio/license' && details.statusCode >= 400) {
+      callbacks.playbackError?.({kind: 'audio-license', status: details.statusCode});
+    }
+  });
   let mainFrameId;
   let trustedContext;
   const bounds = () => {
@@ -47,9 +57,18 @@ async function createEmbeddedPage(window, {WebContentsView, session}, callbacks)
     if (event.isMainFrame && !allowedNavigation(event.url)) event.preventDefault();
   });
   wc.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
-    if (mainFrame && !inPlace) callbacks.lifecycle('starting');
+    if (!closed && mainFrame && !inPlace) {
+      loading = true;
+      view.setVisible(false);
+      callbacks.lifecycle('starting');
+    }
   });
-  wc.on('did-finish-load', () => { if (isPlayer(wc.getURL())) callbacks.lifecycle('loaded'); });
+  wc.on('did-finish-load', () => {
+    if (closed) return;
+    loading = false;
+    view.setVisible(loginVisible);
+    if (isPlayer(wc.getURL())) callbacks.lifecycle('loaded');
+  });
   wc.on('did-fail-load', (_event, code, _description, _url, mainFrame) => {
     if (mainFrame && code !== -3) callbacks.lifecycle('failed');
   });
@@ -82,6 +101,7 @@ async function createEmbeddedPage(window, {WebContentsView, session}, callbacks)
     await wc.debugger.sendCommand('Runtime.addBinding', {name: '__mspHostPost'});
   } catch (error) {
     window.removeListener('resize', bounds);
+    playbackSession.webRequest.onCompleted(licenseFilter, null);
     if (!window.isDestroyed?.()) window.contentView.removeChildView(view);
     wc.close();
     throw error;
@@ -95,11 +115,15 @@ async function createEmbeddedPage(window, {WebContentsView, session}, callbacks)
       });
       if (result.exceptionDetails) throw new Error('Could not evaluate the playback command.');
     },
-    setLoginVisible(visible) { if (!closed) { bounds(); view.setVisible(visible); } },
+    setLoginVisible(visible) {
+      loginVisible = visible;
+      if (!closed) { bounds(); view.setVisible(visible && !loading); }
+    },
     async close() {
       if (closed) return;
       closed = true;
       window.removeListener('resize', bounds);
+      playbackSession.webRequest.onCompleted(licenseFilter, null);
       if (!window.isDestroyed?.()) window.contentView.removeChildView(view);
       if (!wc.isDestroyed()) {
         if (wc.debugger.isAttached()) wc.debugger.detach();

@@ -19,7 +19,9 @@ function fixture() {
   const evaluations = [];
   wc.debugger.sendCommand = async (method, args) => { if(method==='Page.enable' && !wc.loaded) throw Error('No renderer exists before navigation'); evaluations.push({method, args}); return method==='Page.getFrameTree' ? {frameTree:{frame:{id:'main'}}} : {}; };
   const permissions = {};
+  const network = {};
   const ses = {
+    webRequest: {onCompleted: (_filter, handler) => { network.completed=handler; }},
     setPermissionRequestHandler: handler => { permissions.request = handler; },
     setPermissionCheckHandler: handler => { permissions.check = handler; },
   };
@@ -32,7 +34,7 @@ function fixture() {
   window.getContentBounds = () => ({width: 1000, height: 700});
   window.contentView = {addChildView: view => { window.view = view; }, removeChildView: () => { window.removed = true; }};
   const messages = [], lifecycle = [];
-  return {wc, window, evaluations, permissions, messages, lifecycle, electron: {WebContentsView:View, session:{fromPartition:()=>ses}}};
+  return {wc, window, evaluations, permissions, messages, lifecycle, network, electron: {WebContentsView:View, session:{fromPartition:()=>ses}}};
 }
 test('embedded page keeps remote content isolated, activates Play and closes without another window', async () => {
   const f = fixture();
@@ -111,4 +113,28 @@ test('closing the parent window still disposes its playback web contents', async
   f.window.contentView.removeChildView=()=>{throw Error('Parent view is destroyed');};
   await page.close();
   assert.equal(f.wc.closed,true);
+});
+
+test('failed audio licences are reported without leaking response data and the hook is removed on close', async()=>{
+  const f=fixture(),failures=[];
+  const page=await createEmbeddedPage(f.window,f.electron,{message:()=>{},lifecycle:()=>{},playbackError:e=>failures.push(e)});
+  await page.load();
+  f.network.completed({url:'https://gew1-spclient.spotify.com/widevine-license/v1/audio/license',statusCode:200});
+  assert.equal(failures.length,0);
+  f.network.completed({url:'https://gew1-spclient.spotify.com/widevine-license/v1/application-certificate',statusCode:500});
+  assert.equal(failures.length,0);
+  f.network.completed({url:'https://gew1-spclient.spotify.com/widevine-license/v1/audio/license',statusCode:500,responseHeaders:{secret:'do not relay'}});
+  assert.deepEqual(failures,[{kind:'audio-license',status:500}]);
+  await page.close();
+  assert.equal(f.network.completed,null);
+});
+test('login navigation keeps the browser page hidden until it has finished loading',async()=>{
+ const f=fixture();
+ const page=await createEmbeddedPage(f.window,f.electron,{message:()=>{},lifecycle:()=>{}});
+ await page.load();page.setLoginVisible(true);
+ f.wc.emit('did-start-navigation',{},'https://accounts.spotify.com/en/login',false,true);
+ assert.equal(f.window.view.visible,false);
+ f.wc.emit('did-finish-load');
+ assert.equal(f.window.view.visible,true);
+ await page.close();
 });
