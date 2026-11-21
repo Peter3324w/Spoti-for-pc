@@ -22,7 +22,9 @@ jobs:
         run: npm ci
       - name: Install Electron runtime
         working-directory: desktop
-        run: npx electron --version
+        run: |
+          node node_modules/electron/install.js
+          npx electron --version
       - name: Verify desktop shell
         working-directory: desktop
         run: npm test
