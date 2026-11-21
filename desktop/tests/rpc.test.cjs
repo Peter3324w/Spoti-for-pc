@@ -80,6 +80,8 @@ test("embedded playback relays private evaluations, dismisses login and owns onl
   const fs = require("node:fs/promises"), os = require("node:os"), path = require("node:path");
   const { Playback } = require("../electron/playback.cjs");
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), "spoti-embedded-"));
+  const previousBackendLib = process.env.SPOTI_BACKEND_LIB;
+  const backendLib = path.join(profile, "backend", "lib");
   const backend = child();
   backend.exitCode = null;
   backend.kill = () => { backend.exitCode = 0; backend.emit("exit", 0); };
@@ -95,6 +97,8 @@ test("embedded playback relays private evaluations, dismisses login and owns onl
     }; },
   });
   try {
+    await fs.mkdir(backendLib, {recursive:true});
+    process.env.SPOTI_BACKEND_LIB = backendLib;
     await p.connect();
     assert.equal(visible, true);
     assert.equal(commands.length, 1);
@@ -131,7 +135,12 @@ test("embedded playback relays private evaluations, dismisses login and owns onl
     await p.stop();
     assert.equal(closed, true);
     assert.equal(backend.exitCode, 0);
-  } finally { await p.stop(); await fs.rm(profile,{recursive:true,force:true}); }
+  } finally {
+    await p.stop();
+    if (previousBackendLib === undefined) delete process.env.SPOTI_BACKEND_LIB;
+    else process.env.SPOTI_BACKEND_LIB = previousBackendLib;
+    await fs.rm(profile,{recursive:true,force:true});
+  }
 });
 
 test("shutdown does not wait for an unfinished DRM component download", async () => {
