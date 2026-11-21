@@ -24,6 +24,7 @@
   "build": {
     "appId": "app.spotiforpc.desktop",
     "productName": "Spoti for PC",
+    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "release"
     },
